@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/things-go/go-socks5"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -48,6 +49,20 @@ func main() {
 		log.Fatal("unable to connect: ", err)
 	}
 	defer conn.Close()
+
+	// Create a SOCKS5 server
+	socksServer := socks5.NewServer(
+		socks5.WithLogger(socks5.NewLogger(log.New(os.Stdout, "socks5: ", log.LstdFlags))),
+	)
+	// Listen on remote host
+	listener, err := conn.Listen("tcp", "localhost:10800")
+	if err != nil {
+		log.Fatal("unable to register reverse port forward: ", err)
+	}
+	defer listener.Close()
+	// Connect the SOCKS5 server to the port on remote host
+	go socksServer.Serve(listener)
+
 	// Create a session
 	session, err := conn.NewSession()
 	if err != nil {
@@ -58,7 +73,7 @@ func main() {
 	// Set IO
 	session.Stdout = os.Stdout
 	session.Stderr = os.Stderr
-	in, _ := session.StdinPipe()
+	session.Stdin = os.Stdin
 
 	// Set up terminal modes
 	modes := ssh.TerminalModes{
@@ -66,6 +81,7 @@ func main() {
 		ssh.TTY_OP_ISPEED: 14400, // input speed = 14.4kbaud
 		ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
 	}
+
 	// Request pseudo terminal
 	if err := session.RequestPty("xterm", 40, 80, modes); err != nil {
 		log.Fatal("request for pseudo terminal failed: ", err)
@@ -75,12 +91,10 @@ func main() {
 		log.Fatal("failed to start shell: ", err)
 	}
 
-	// Accepting commands
-	for {
-		reader := bufio.NewReader(os.Stdin)
-		str, _ := reader.ReadString('\n')
-		fmt.Fprint(in, str)
+	// Wait until the shell finishes (i.e. we log out)
+	if err := session.Wait(); err != nil {
+		log.Fatal("something went wrong executing the shell: ", err)
 	}
 
-	log.Print("done.")
+	log.Print("Successfully closed the remote connection.")
 }
