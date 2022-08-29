@@ -104,8 +104,14 @@ func main() {
 		ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
 	}
 
+	colorterm := os.Getenv("COLORTERM")
+	terminalType := ""
+	if len(colorterm) > 0 {
+		fmt.Printf("COLORTERM environment variable: '%s', enabling color output\n", os.Getenv("COLORTERM"))
+		terminalType = "xterm"
+	}
 	// Request pseudo terminal
-	if err := session.RequestPty("xterm", 40, 80, modes); err != nil {
+	if err := session.RequestPty(terminalType, 40, 80, modes); err != nil {
 		log.Fatal("request for pseudo terminal failed: ", err)
 	}
 	// Start remote shell
