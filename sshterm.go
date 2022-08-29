@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/things-go/go-socks5"
 	"golang.org/x/crypto/ssh"
@@ -30,6 +31,25 @@ func scanConfigWithDefault(default_value string) string {
 func prompt(message string, default_value string) string {
 	fmt.Printf("%s (default value: %s)? ", message, default_value)
 	return scanConfigWithDefault(default_value)
+}
+
+func setRemoteDate(conn *ssh.Client) {
+	// Create a session
+	date_session, err := conn.NewSession()
+	if err != nil {
+		log.Fatal("unable to create session: ", err)
+	}
+	defer date_session.Close()
+
+	// Set the date/time on remote machine
+	// Probably, the Raspberry Pi's emulated clock is wrong, which will cause problems.
+	date_command := fmt.Sprintf("sudo date -s \"%s\"", time.Now().Format(time.UnixDate))
+	fmt.Println("Setting remote time with command:", date_command)
+	date_output, err := date_session.CombinedOutput(date_command)
+	if err != nil {
+		fmt.Printf("Date output: %s", date_output)
+		log.Fatal("Unable to set date: ", err)
+	}
 }
 
 func main() {
@@ -62,6 +82,8 @@ func main() {
 	defer listener.Close()
 	// Connect the SOCKS5 server to the port on remote host
 	go socksServer.Serve(listener)
+
+	setRemoteDate(conn)
 
 	// Create a session
 	session, err := conn.NewSession()
