@@ -15,14 +15,20 @@ This little Go project bundles up everything I need into a single executable.  W
 * Makes an SSH connection to the device
 * Creates a reverse tunnel (on port 10800)
 * Runs a SOCKS5 proxy connected to the tunnel
+* Sets the date on the remote machine (with `sudo date`)
+* Adds bash aliases to set the proxy environment variables
 
 Currently its configuration options are very limited, but I expect it will be a really handy utility for updating Web of Things devices on "dark" networks.  This should solve a longstanding and really annoying limitation of such devices in University labs, where (for good reasons) campus IT administrators are generally very unwilling to allow these devices on the main network.  I hope this means that "dark" networks (i.e. not directly connected to either the secure campus network or the internet) become a bit easier to manage.
 
 ## Current status
 
-This program currently runs and works on my Windows laptop, connecting to a locally-connected Raspberry Pi running a customised Raspberry Pi OS.  I use `libproxychains4` to connect to the proxy - there is a workaround to get `apt` to use the proxy independently of `proxychains` (because otherwise how do you `apt install proxychains4`?).
+This program currently runs and works on my Windows laptop, connecting to a locally-connected Raspberry Pi running a customised Raspberry Pi OS.  I use `libproxychains4` to connect to the proxy if, for whatever reason, the environment variables are ignored or the program doesn't support it.  With the proxy variables exported (e.g. by typing `export-wot-proxy` in the session) most things work (`pip`, `sudo apt ...`, etc.) but there are edge cases that fail (see below).
 
-Things that really need to happen before it's useful:
+### Known issues
+
+* `git-lfs` seems not to use the proxy correctly (I believe this is due to a difference in how the Go http libraries work vs libc). Currently I work around this by exporting `GIT_LFS_SKIP_SMUDGE=1` which is aliased to `disable-git-lfs` by this script.
+
+### Things that really need to happen before it's useful:
 
 * Allow changing of hard-coded user/password/host/port settings
 * Handle command-line arguments (e.g. user, host, port)

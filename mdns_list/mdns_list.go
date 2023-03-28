@@ -3,24 +3,27 @@ package main
 
 import (
 	"fmt"
-	//"net"
+	"net"
+	"log"
 
 	"github.com/hashicorp/mdns"
 )
 
 func main() {
-	/*// Windows has problems if you don't specify an interface :(
-	ifaces, _ := net.Interfaces()
-	for _, i := range ifaces {
-		addrs, err := i.Addrs()
-		if err != nil {
-			log.Print(fmt.Errorf("localAddresses: %v\n", err.Error()))
-			continue
+	// Windows has problems if you don't specify an interface :(
+	if(true){
+		ifaces, _ := net.Interfaces()
+		for _, i := range ifaces {
+			addrs, err := i.Addrs()
+			if err != nil {
+				log.Print(fmt.Errorf("localAddresses: %v\n", err.Error()))
+				continue
+			}
+			for _, a := range addrs {
+				log.Printf("%v %v\n", i.Name, a)
+			}
 		}
-		for _, a := range addrs {
-			log.Printf("%v %v\n", i.Name, a)
-		}
-	}*/
+	}
 	// Discover services using mDNS
 	// The channel and function below just print services as they are discovered
 	entriesCh := make(chan *mdns.ServiceEntry, 4)
@@ -39,7 +42,7 @@ func main() {
 	// Start the lookup
 	queryParams := mdns.DefaultParams("_labthing._tcp")
 	queryParams.Entries = entriesCh
-	queryParams.DisableIPv6 = false
+	queryParams.DisableIPv6 = true
 	mdns.Query(queryParams)
 	close(entriesCh)
 }
