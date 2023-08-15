@@ -3,14 +3,18 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/things-go/go-socks5"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/term"
 )
 
 func scanConfig() string {
@@ -97,19 +101,42 @@ func runCommandOnRemoteHost(conn *ssh.Client, cmd string, description string) ([
 	return output, err
 }
 
+func askUserForPassword(user, instruction string, questions []string, echos []bool) ([]string, error) {
+	// Prompt the user for answers, to support keyboard-interactive authentication
+	answers := make([]string, len(questions))
+	for i := range answers {
+		fmt.Print(questions[i])
+		passwd, err := term.ReadPassword(int(syscall.Stdin))
+		if err != nil {
+			return make([]string, 0), err
+		}
+		answers[i] = string(passwd)
+	}
+
+	return answers, nil
+}
+
 func main() {
 	// This is heavily borrowed from the crypto/ssh example
 	// with much help from https://github.com/inatus/ssh-client-go/blob/master/main.go
+
+	// Parse command line arguments
+	hostnamePtr := flag.String("hostname", "microscope.local", "hostname of the microscope")
+	portPtr := flag.Int("port", 22, "port number to connect to")
+	userPtr := flag.String("user", "pi", "username to log in as")
+	flag.Parse()
+
 	// Create client config
 	config := &ssh.ClientConfig{
-		User: "pi",
+		User: *userPtr,
 		Auth: []ssh.AuthMethod{
 			ssh.Password("openflexure"),
+			ssh.KeyboardInteractive(askUserForPassword),
 		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 	// Connect to ssh server
-	conn, err := ssh.Dial("tcp", "microscope.local:22", config)
+	conn, err := ssh.Dial("tcp", net.JoinHostPort(*hostnamePtr, fmt.Sprint(*portPtr)), config)
 	if err != nil {
 		log.Fatal("unable to connect: ", err)
 	}
