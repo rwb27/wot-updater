@@ -41,13 +41,12 @@ Currently this is not packaged/built automatically.  You will need to:
 * [Install Go](https://go.dev/doc/install)
 * Clone the repository
 * Obtain the requisite libraries:
-    - `go get github.com/things-go/go-socks5`
-	- `go get golang.org/x/crypto/ssh`
+    - `go mod tidy`
 * Compile and run the program:
-    - `go run sshterm.go`
+    - `go run ./sshterm`
 
 ## Building
 
-You can build a stand-alone, statically linked binary for your platform with `go build sshterm.go`.  Once this is a bit more ready for use, I'll build it automatically in the CI.
+You can build a stand-alone, statically linked binary for your platform with `go build ./sshterm`.  Once this is a bit more ready for use, I'll build it automatically in the CI.
 
 [OpenFlexure Microscope]: https://openflexure.org/
