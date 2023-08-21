@@ -82,6 +82,7 @@ func setRemoteAliases(conn *ssh.Client) {
 		"echo -e \"strict_chain\\nproxy_dns\\n\\n[ProxyList]\\nsocks5 127.0.0.1 10800\" > " + pc_config,
 		replace_alias_in_bashrc_cmd("export-wot-proxy", export_proxy_cmd),
 		replace_alias_in_bashrc_cmd("export-empty-proxy", clear_proxy_cmd),
+		replace_alias_in_bashrc_cmd("wot-pc", proxy_env_vars("")+" proxychains -f "+pc_config),
 		replace_alias_in_bashrc_cmd("sudo-wot-pc", proxy_env_vars("")+" sudo proxychains -f "+pc_config),
 		replace_alias_in_bashrc_cmd("skip-git-lfs", "export GIT_LFS_SKIP_SMUDGE=1"),
 		replace_alias_in_bashrc_cmd("dont-skip-git-lfs", "export GIT_LFS_SKIP_SMUDGE=1"),
