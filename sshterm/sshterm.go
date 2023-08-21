@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/containerd/console"
 	"github.com/things-go/go-socks5"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
@@ -52,7 +53,7 @@ func proxy_env_vars(proxy string) string {
 			"all_proxy=" + proxy + " " +
 			"HTTP_PROXY=" + proxy + " " +
 			"HTTPS_PROXY=" + proxy + " " +
-			"ALL_PROXY=" + proxy
+			"ALL_PROXY=" + proxy + " "
 	return env_var_string
 }
 
@@ -69,11 +70,18 @@ func setRemoteAliases(conn *ssh.Client) {
 	// Add bash aliases to set the proxy on the remote machine
 	proxy := "socks5h://127.0.0.1:10800"
 	pc_config := "~/.proxychains-wot-updater.conf"
-	export_proxy_cmd := "export " + proxy_env_vars(proxy) + " PROXYCHAINS_CONF_FILE=" + pc_config
+	export_proxy_cmd :=
+		"export " + proxy_env_vars(proxy) +
+			" PROXYCHAINS_CONF_FILE=" + pc_config +
+			" ssh_proxy='\"'\"'ProxyCommand=nc -X 5 -x localhost:10800 %h %p'\"'\"'"
+		// The '\"'\"' escapes a ' character, by ending the single-quoted string
+		// and appending a double-quoted string containing a single quote.
+	clear_proxy_cmd :=
+		"export " + proxy_env_vars("") + "ssh_proxy="
 	cmds := []string{
 		"echo -e \"strict_chain\\nproxy_dns\\n\\n[ProxyList]\\nsocks5 127.0.0.1 10800\" > " + pc_config,
 		replace_alias_in_bashrc_cmd("export-wot-proxy", export_proxy_cmd),
-		replace_alias_in_bashrc_cmd("export-empty-proxy", "export "+proxy_env_vars("")),
+		replace_alias_in_bashrc_cmd("export-empty-proxy", clear_proxy_cmd),
 		replace_alias_in_bashrc_cmd("sudo-wot-pc", proxy_env_vars("")+" sudo proxychains -f "+pc_config),
 		replace_alias_in_bashrc_cmd("skip-git-lfs", "export GIT_LFS_SKIP_SMUDGE=1"),
 		replace_alias_in_bashrc_cmd("dont-skip-git-lfs", "export GIT_LFS_SKIP_SMUDGE=1"),
@@ -101,7 +109,7 @@ func runCommandOnRemoteHost(conn *ssh.Client, cmd string, description string) ([
 	return output, err
 }
 
-func askUserForPassword(user, instruction string, questions []string, echos []bool) ([]string, error) {
+func askUserSecretQuestions(user, instruction string, questions []string, echos []bool) ([]string, error) {
 	// Prompt the user for answers, to support keyboard-interactive authentication
 	answers := make([]string, len(questions))
 	for i := range answers {
@@ -114,6 +122,16 @@ func askUserForPassword(user, instruction string, questions []string, echos []bo
 	}
 
 	return answers, nil
+}
+func askUserForPassword() (string, error) {
+	// Prompt the user for a password
+	fmt.Print("Password: ")
+	passwd, err := term.ReadPassword(int(syscall.Stdin))
+	if err != nil {
+		log.Fatal("unable to read password: ", err)
+	}
+	fmt.Println()
+	return string(passwd), err
 }
 
 func main() {
@@ -130,8 +148,9 @@ func main() {
 	config := &ssh.ClientConfig{
 		User: *userPtr,
 		Auth: []ssh.AuthMethod{
-			ssh.Password("openflexure"),
-			ssh.KeyboardInteractive(askUserForPassword),
+			//ssh.Password("openflexure"),
+			ssh.PasswordCallback(askUserForPassword),
+			ssh.KeyboardInteractive(askUserSecretQuestions),
 		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
@@ -166,6 +185,16 @@ func main() {
 	}
 	defer session.Close()
 
+	// Make the terminal raw, so it works properly with SSH
+	// NB doing this with golang.org/x/term doensn't work with
+	// arrow keys on Windows.
+	current := console.Current()
+	defer current.Reset()
+
+	if err := current.SetRaw(); err != nil {
+		log.Fatal("couldn't make the terminal raw: ", err)
+	}
+
 	// Set IO
 	session.Stdout = os.Stdout
 	session.Stderr = os.Stderr
@@ -173,7 +202,7 @@ func main() {
 
 	// Set up terminal modes
 	modes := ssh.TerminalModes{
-		ssh.ECHO:          0,     // disable echoing
+		ssh.ECHO:          1,     // disable echoing
 		ssh.TTY_OP_ISPEED: 14400, // input speed = 14.4kbaud
 		ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
 	}
