@@ -68,7 +68,7 @@ func replace_alias_in_bashrc_cmd(alias string, cmd string) string {
 
 func setRemoteAliases(conn *ssh.Client) {
 	// Add bash aliases to set the proxy on the remote machine
-	proxy := "socks5h://127.0.0.1:10800"
+	proxy := "socks5h://localhost:10800"
 	pc_config := "~/.proxychains-wot-updater.conf"
 	export_proxy_cmd :=
 		"export " + proxy_env_vars(proxy) +
@@ -143,6 +143,7 @@ func main() {
 	hostnamePtr := flag.String("hostname", "microscope.local", "hostname of the microscope")
 	portPtr := flag.Int("port", 22, "port number to connect to")
 	userPtr := flag.String("user", "pi", "username to log in as")
+	killPtr := flag.Bool("kill-listeners", false, "Whether to kill any processes already using port 10800")
 	flag.Parse()
 
 	// Create client config
@@ -162,18 +163,32 @@ func main() {
 	}
 	defer conn.Close()
 
+	if *killPtr {
+		runCommandOnRemoteHost(conn, "sudo kill `sudo netstat -nlp | grep 10800 | sed -E 's/.* ([0-9]+).sshd.*/\\1/'`", "Killing processes using port 10800")
+	}
+
 	// Create a SOCKS5 server
 	socksServer := socks5.NewServer(
 		socks5.WithLogger(socks5.NewLogger(log.New(os.Stdout, "socks5: ", log.LstdFlags))),
 	)
-	// Listen on remote host
-	listener, err := conn.Listen("tcp", "localhost:10800")
-	if err != nil {
-		log.Fatal("unable to register reverse port forward: ", err)
+	// Listen on remote host, using both ipv4 and 6, if possible
+	listening := false
+	protocols := []string{"tcp", "tcp6"}
+	for _, p := range protocols {
+		listener, err := conn.Listen(p, "localhost:10800")
+		if err != nil {
+			fmt.Println("unable to register reverse port forward: ", err, " on protocol ", p)
+		} else {
+			fmt.Println("listening on protocol ", p)
+			defer listener.Close()
+			// Connect the SOCKS5 server to the port on remote host
+			go socksServer.Serve(listener)
+			listening = true
+		}
 	}
-	defer listener.Close()
-	// Connect the SOCKS5 server to the port on remote host
-	go socksServer.Serve(listener)
+	if !listening {
+		log.Fatal("Could not listen on port 10800, try using --kill-listeners to recover from a disconnect")
+	}
 
 	// Set the date, and add aliases on the remote machine to set proxy environment variables
 	setRemoteDate(conn)
