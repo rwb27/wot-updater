@@ -24,8 +24,8 @@ jobs:
     - name: Build
       run: |
         mkdir builds
-        GOOS=windows GOARCH=amd64 go build -v ./sshterm/sshterm.go -o builds/sshterm.exe
-        GOOS=windows GOARCH=i386 go build -v ./sshterm/sshterm.go -o builds/sshterm32.exe
+        GOOS=windows GOARCH=amd64 go build -v -o builds/sshterm.exe ./sshterm/sshterm.go
+        GOOS=windows GOARCH=i386 go build -v -o builds/sshterm32.exe ./sshterm/sshterm.go
 
     - name: Archive build artifacts
       uses: actions/upload-artifact@v3
